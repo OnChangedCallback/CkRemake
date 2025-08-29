@@ -8540,7 +8540,7 @@ function Compkiller:ConfigManager(ConfigManager: ConfigManager) : ConfigFunction
 		EnableNotify = false,
 	};
 
-	local notify = Compkiller.newNotify();
+	local notify = Compkiller:newNotify();
 
 	function Args:WriteConfig(Config: WriteConfig)
 
@@ -8705,26 +8705,26 @@ function Compkiller:ConfigManager(ConfigManager: ConfigManager) : ConfigFunction
 			end;
 		end;
 	end;
-
+	
 	return Args;
 end;
 
 function Compkiller:Loader(IconId,Duration)
-	local CompKiller = Instance.new("ScreenGui")
+	local CompKillerLoader = Instance.new("ScreenGui")
 
-	CompKiller.Name = Compkiller:_RandomString()
-	CompKiller.Parent = CoreGui
-	CompKiller.Enabled = true
-	CompKiller.ResetOnSpawn = false
-	CompKiller.IgnoreGuiInset = true
-	CompKiller.ZIndexBehavior = Enum.ZIndexBehavior.Global
+	CompKillerLoader.Name = Compkiller:_RandomString()
+	CompKillerLoader.Parent = CoreGui
+	CompKillerLoader.Enabled = true
+	CompKillerLoader.ResetOnSpawn = false
+	CompKillerLoader.IgnoreGuiInset = true
+	CompKillerLoader.ZIndexBehavior = Enum.ZIndexBehavior.Global
 
 	local Loader = Instance.new("Frame")
 	local Icon = Instance.new("ImageLabel")
 	local Vignette = Instance.new("ImageLabel")
 
 	Loader.Name = Compkiller:_RandomString()
-	Loader.Parent = CompKiller
+	Loader.Parent = CompKillerLoader
 	Loader.AnchorPoint = Vector2.new(0.5, 0.5)
 	Loader.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 	Loader.BackgroundTransparency = 1
@@ -8796,7 +8796,7 @@ function Compkiller:Loader(IconId,Duration)
 				task.wait(0.2)
 
 				task.delay(3,function()
-					CompKiller:Destroy();
+					CompKillerLoader:Destroy();
 				end)
 			end)
 
@@ -8813,7 +8813,7 @@ function Compkiller:Loader(IconId,Duration)
 	};
 end;
 
-function Compkiller.newNotify()
+function Compkiller:newNotify()
 	if Compkiller.NOTIFY_CACHE then
 		return Compkiller.NOTIFY_CACHE;
 	end;
