@@ -449,6 +449,11 @@ do
             end
         end
         
+        -- Сортируем по приоритету (от лучшего к худшему)
+        table.sort(availableHitParts, function(a, b)
+            return a.priority < b.priority
+        end)
+        
         return availableHitParts
     end
     
@@ -457,11 +462,7 @@ do
         
         if #availableHitParts == 0 then return nil end
         
-        -- Сортируем по приоритету (меньше = лучше)
-        table.sort(availableHitParts, function(a, b)
-            return a.priority < b.priority
-        end)
-        
+        -- Сортировка уже выполнена в getAvailableHitParts
         return availableHitParts[1]
     end
     
@@ -474,6 +475,10 @@ do
     local CombatColumn = Tabs.Combat:Column()
     local RageBotSection = CombatColumn:Section({Name = "RageBot"})
     
+    -- Вторая колонна для Override настроек
+    local CombatColumn2 = Tabs.Combat:Column()
+    local OverrideSection = CombatColumn2:Section({Name = "Override Settings"})
+    
     -- RageBot переменные
     local rageBotEnabled = false
     local rageBotConnection = nil
@@ -483,6 +488,10 @@ do
     local tracerTransparency = 0.5
     local lastTargetCheck = 0
     
+    -- Override переменные
+    local hitPartOverrideEnabled = false
+    local overrideHitParts = {"Head"}
+    
     RageBotSection:Toggle({
         Name = "Enable RageBot",
         Flag = "RageBotEnabled",
@@ -491,17 +500,27 @@ do
             rageBotEnabled = value
             
             if rageBotEnabled then
-                -- Используем RenderStepped для лучшей производительности
-                local lastUpdate = 0
+                -- Оптимизированная система с разными частотами
+                local lastTargetUpdate = 0
+                local lastHitPartUpdate = 0
+                local lastObjectUpdate = 0
+                local currentTarget = nil
+                local currentBestHitPart = nil
+                
                 rageBotConnection = vars.utility.new_connection(vars.RunService.RenderStepped, function()
-                    -- Ограничиваем до 100 FPS для высокой точности
                     local currentTime = tick()
-                    if currentTime - lastUpdate < (1/100) then return end
-                    lastUpdate = currentTime
-                    if not vars.framework.canShoot() then return end
                     
-                    local target = vars.framework.getTarget()
-                    if not target or not target.Character then 
+                    -- Поиск цели: 30 FPS (каждые 33ms)
+                    if currentTime - lastTargetUpdate >= (1/30) then
+                        lastTargetUpdate = currentTime
+                        if vars.framework.canShoot() then
+                            currentTarget = vars.framework.getTarget()
+                        else
+                            currentTarget = nil
+                        end
+                    end
+                    
+                    if not currentTarget or not currentTarget.Character then 
                         -- Отключаем autoshoot если нет цели
                         if vars.LocalPlayer.Character then
                             local autoShoot = vars.LocalPlayer.Character:FindFirstChild("autoshoot")
@@ -510,9 +529,13 @@ do
                         return 
                     end
                     
-                    -- Получаем лучший доступный hitpart
-                    local bestHitPart = vars.framework.getBestAvailableHitPart(target)
-                    if not bestHitPart or not bestHitPart.part then
+                    -- Проверка hitparts: 30 FPS (каждые 33ms)
+                    if currentTime - lastHitPartUpdate >= (1/30) then
+                        lastHitPartUpdate = currentTime
+                        currentBestHitPart = vars.framework.getBestAvailableHitPart(currentTarget)
+                    end
+                    
+                    if not currentBestHitPart or not currentBestHitPart.part then
                         -- Отключаем autoshoot если нет доступных hitparts
                         if vars.LocalPlayer.Character then
                             local autoShoot = vars.LocalPlayer.Character:FindFirstChild("autoshoot")
@@ -521,34 +544,44 @@ do
                         return
                     end
                     
-                    -- Создаем/обновляем значения для gunshoot framework
+                    -- Обновление позиции аима: 60 FPS (каждые 16ms)
                     if vars.LocalPlayer.Character then
-                        local autoShoot = vars.LocalPlayer.Character:FindFirstChild("autoshoot")
-                        if not autoShoot then
-                            autoShoot = Instance.new("BoolValue")
-                            autoShoot.Name = "autoshoot"
-                            autoShoot.Parent = vars.LocalPlayer.Character
-                        end
-                        autoShoot.Value = true
-                        
-                        local rageAim = vars.LocalPlayer.Character:FindFirstChild("rageaim")
-                        if not rageAim then
-                            rageAim = Instance.new("BoolValue")
-                            rageAim.Name = "rageaim"
-                            rageAim.Parent = vars.LocalPlayer.Character
-                        end
-                        rageAim.Value = true
-                        
                         local aimPos = vars.LocalPlayer.Character:FindFirstChild("aimpos")
-                        if not aimPos then
-                            aimPos = Instance.new("Vector3Value")
-                            aimPos.Name = "aimpos"
-                            aimPos.Parent = vars.LocalPlayer.Character
+                        if aimPos then
+                            aimPos.Value = currentBestHitPart.part.Position
                         end
-                        aimPos.Value = bestHitPart.part.Position
+                    end
+                    
+                    -- Создание/обновление объектов: 5 FPS (каждые 200ms)
+                    if currentTime - lastObjectUpdate >= (1/5) then
+                        lastObjectUpdate = currentTime
+                        if vars.LocalPlayer.Character then
+                            local autoShoot = vars.LocalPlayer.Character:FindFirstChild("autoshoot")
+                            if not autoShoot then
+                                autoShoot = Instance.new("BoolValue")
+                                autoShoot.Name = "autoshoot"
+                                autoShoot.Parent = vars.LocalPlayer.Character
+                            end
+                            autoShoot.Value = true
+                            
+                            local rageAim = vars.LocalPlayer.Character:FindFirstChild("rageaim")
+                            if not rageAim then
+                                rageAim = Instance.new("BoolValue")
+                                rageAim.Name = "rageaim"
+                                rageAim.Parent = vars.LocalPlayer.Character
+                            end
+                            rageAim.Value = true
+                            
+                            local aimPos = vars.LocalPlayer.Character:FindFirstChild("aimpos")
+                            if not aimPos then
+                                aimPos = Instance.new("Vector3Value")
+                                aimPos.Name = "aimpos"
+                                aimPos.Parent = vars.LocalPlayer.Character
+                            end
+                        end
                         
                         -- Показываем трейсер если включен
-                        if showAimbotEnabled then
+                        if showAimbotEnabled and currentBestHitPart then
                             -- Удаляем старый трейсер
                             if currentTracer then
                                 currentTracer:Destroy()
@@ -566,7 +599,7 @@ do
                             if bulletStart then
                                 currentTracer = vars.framework.createTracer(
                                     bulletStart.Position,
-                                    bestHitPart.part.Position,
+                                    currentBestHitPart.part.Position,
                                     tracerColor,
                                     tracerTransparency
                                 )
@@ -665,12 +698,74 @@ do
         Options = vars.HitParts,
         Multi = true,
         Callback = function(value)
-            -- Обновляем выбранные hitparts
-            if value and #value > 0 then
-                vars.framework.setSelectedHitParts(value)
+            -- Обновляем выбранные hitparts только если override выключен
+            if not hitPartOverrideEnabled then
+                if value and #value > 0 then
+                    vars.framework.setSelectedHitParts(value)
+                else
+                    -- Если ничего не выбрано, ставим по умолчанию голову
+                    vars.framework.setSelectedHitParts({"Head"})
+                end
+            end
+        end
+    })
+    
+    -- Override Toggle с кейбиндом
+    local overrideToggle = OverrideSection:Toggle({
+        Name = "HitPart Override",
+        Flag = "HitPartOverride",
+        Default = false,
+        Callback = function(value)
+            hitPartOverrideEnabled = value
+            
+            if hitPartOverrideEnabled then
+                -- Используем override хитпарты
+                if overrideHitParts and #overrideHitParts > 0 then
+                    vars.framework.setSelectedHitParts(overrideHitParts)
+                else
+                    vars.framework.setSelectedHitParts({"Head"})
+                end
             else
-                -- Если ничего не выбрано, ставим по умолчанию голову
-                vars.framework.setSelectedHitParts({"Head"})
+                -- Возвращаемся к основным хитпартам
+                local mainHitParts = Library.Flags["HitPartsSelection"]
+                if mainHitParts and #mainHitParts > 0 then
+                    vars.framework.setSelectedHitParts(mainHitParts)
+                else
+                    vars.framework.setSelectedHitParts({"Head"})
+                end
+            end
+        end
+    })
+    
+    -- Добавляем кейбинд к тоглу
+    local overrideKeybind = overrideToggle:Keybind({
+        Name = "Override Keybind",
+        Flag = "HitPartOverrideKeybind",
+        Default = Enum.KeyCode.V,
+        Mode = "Toggle",
+        Callback = function(active)
+            -- Обновляем состояние тогла через его метод Set
+            overrideToggle.Set(active)
+        end
+    })
+    
+    -- Override HitParts Dropdown
+    OverrideSection:Dropdown({
+        Name = "Override Hit Parts",
+        Flag = "OverrideHitPartsSelection",
+        Default = {"Head"},
+        Options = vars.HitParts,
+        Multi = true,
+        Callback = function(value)
+            overrideHitParts = value
+            
+            -- Если override включен, сразу применяем новые хитпарты
+            if hitPartOverrideEnabled then
+                if value and #value > 0 then
+                    vars.framework.setSelectedHitParts(value)
+                else
+                    vars.framework.setSelectedHitParts({"Head"})
+                end
             end
         end
     })
